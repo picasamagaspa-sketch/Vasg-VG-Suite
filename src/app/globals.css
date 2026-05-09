@@ -957,6 +957,10 @@ button, a {
   margin-bottom: 8px;
 }
 
+.price-loading .amount {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
 .currency {
   font-size: 1.2rem;
   color: var(--muted);

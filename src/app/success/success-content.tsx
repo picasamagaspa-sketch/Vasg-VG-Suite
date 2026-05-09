@@ -6,17 +6,38 @@ import { useSearchParams } from 'next/navigation';
 export default function SuccessContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate verification of payment
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, []);
+  const [sessionData, setSessionData] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const sessionId = searchParams.get('session_id');
+
+  useEffect(() => {
+    if (sessionId) {
+      // Fetch session details from Stripe
+      fetch(`/api/checkout/session/${sessionId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            setError(data.error);
+          } else {
+            setSessionData(data);
+          }
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error('Error fetching session:', err);
+          setError('Failed to load session details');
+          setLoading(false);
+        });
+    } else {
+      setLoading(false);
+    }
+  }, [sessionId]);
+
+  // Extract pricing information from session data
+  const billingCycle = sessionData?.metadata?.billing_cycle || 'monthly';
+  const amount = sessionData?.amount_total || 999; // fallback to $9.99
+  const displayPrice = (amount / 100).toFixed(2);
 
   return (
     <div className="success-shell">
@@ -26,6 +47,21 @@ export default function SuccessContent() {
             <div className="spinner" />
             <h2>Processing your payment...</h2>
             <p>Setting up your Pro account</p>
+          </div>
+        ) : error ? (
+          <div className="success-content">
+            <div className="success-icon">⚠️</div>
+            <h1>Payment Verification</h1>
+            <p className="success-subtitle">There was an issue verifying your payment.</p>
+            <p className="error-message">{error}</p>
+            <div className="action-buttons">
+              <a href="/" className="btn btn-primary btn-large">
+                Return to App
+              </a>
+              <a href="/checkout" className="btn btn-ghost">
+                Try Again
+              </a>
+            </div>
           </div>
         ) : (
           <div className="success-content">
@@ -37,11 +73,11 @@ export default function SuccessContent() {
             <div className="success-details">
               <div className="detail-item">
                 <span className="detail-label">Plan</span>
-                <span className="detail-value">VASG-VG Pro (Monthly)</span>
+                <span className="detail-value">VASG-VG Pro ({billingCycle === 'monthly' ? 'Monthly' : 'Annual'})</span>
               </div>
               <div className="detail-item">
                 <span className="detail-label">Billing</span>
-                <span className="detail-value">$29.99 per month</span>
+                <span className="detail-value">${displayPrice} per {billingCycle === 'monthly' ? 'month' : 'year'}</span>
               </div>
               <div className="detail-item">
                 <span className="detail-label">Status</span>

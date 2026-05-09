@@ -10,7 +10,7 @@ import {
 } from '@stripe/react-stripe-js';
 
 const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
+  process.env.pk_live_51RCxLjFjfxVYxw6RFub0uRoYLxHxipH2bmJxmoWRvGPns6ZHnMV0uXgmPAeXFV7J0ShyUKWLVJdXivIlYSWfYg3400avkOcpXZ || ''
 );
 
 // Checkout Form Component
@@ -21,11 +21,52 @@ function CheckoutForm() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [prices, setPrices] = useState<{
+    monthly: { amount: number; currency: string };
+    annual: { amount: number; currency: string };
+  } | null>(null);
+  const [priceLoading, setPriceLoading] = useState(true);
 
-  const monthlyPrice = 999; // $9.99 in cents
-  const annualPrice = 9999; // $99.99in cents (save $60/year)
-  const displayPrice = billingCycle === 'monthly' ? 9.99 : 99.99;
-  const savings = billingCycle === 'annual' ? '$60/year' : 'Save $60/year with annual';
+  // Fetch prices from Stripe on component mount
+  useEffect(() => {
+    fetch('/api/prices')
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          console.error('Error fetching prices:', data.error);
+          // Fallback to static prices if API fails
+          setPrices({
+            monthly: { amount: 999, currency: 'usd' },
+            annual: { amount: 9999, currency: 'usd' },
+          });
+        } else {
+          setPrices(data);
+        }
+        setPriceLoading(false);
+      })
+      .catch(err => {
+        console.error('Error fetching prices:', err);
+        // Fallback to static prices
+        setPrices({
+          monthly: { amount: 999, currency: 'usd' },
+          annual: { amount: 9999, currency: 'usd' },
+        });
+        setPriceLoading(false);
+      });
+  }, []);
+
+  // Calculate display prices
+  const monthlyPrice = prices?.monthly.amount || 999;
+  const annualPrice = prices?.annual.amount || 9999;
+  const displayPrice = billingCycle === 'monthly'
+    ? (monthlyPrice / 100).toFixed(2)
+    : (annualPrice / 100).toFixed(2);
+
+  const monthlyDisplay = (monthlyPrice / 100).toFixed(2);
+  const annualDisplay = (annualPrice / 100).toFixed(2);
+  const savings = billingCycle === 'annual'
+    ? `$${(monthlyPrice * 12 - annualPrice) / 100}/year`
+    : `Save $${(monthlyPrice * 12 - annualPrice) / 100}/year with annual`;
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -51,6 +92,7 @@ function CheckoutForm() {
         body: JSON.stringify({
           email,
           billingCycle,
+          priceAmount: billingCycle === 'monthly' ? monthlyPrice : annualPrice,
         }),
       });
 
@@ -120,12 +162,23 @@ function CheckoutForm() {
           </div>
 
           <div className="price-display">
-            <div className="price-amount">
-              <span className="currency">$</span>
-              <span className="amount">{displayPrice.toFixed(2)}</span>
-              <span className="period">/{billingCycle === 'monthly' ? 'month' : 'year'}</span>
-            </div>
-            <p className="price-note">{savings}</p>
+            {priceLoading ? (
+              <div className="price-loading">
+                <div className="price-amount">
+                  <span className="currency">$</span>
+                  <span className="amount">...</span>
+                  <span className="period">/{billingCycle === 'monthly' ? 'month' : 'year'}</span>
+                </div>
+                <p className="price-note">Loading prices...</p>
+              </div>
+            ) : (
+              <div className="price-amount">
+                <span className="currency">$</span>
+                <span className="amount">{displayPrice}</span>
+                <span className="period">/{billingCycle === 'monthly' ? 'month' : 'year'}</span>
+              </div>
+            )}
+            {!priceLoading && <p className="price-note">{savings}</p>}
           </div>
 
           <form onSubmit={handleSubmit} className="checkout-form">
@@ -161,7 +214,7 @@ function CheckoutForm() {
               disabled={!stripe || loading}
               style={{ width: '100%' }}
             >
-              {loading ? 'Processing... ⏳' : `Subscribe for $${displayPrice.toFixed(2)}/${billingCycle === 'monthly' ? 'month' : 'year'}`}
+              {loading ? 'Processing... ⏳' : `Subscribe for $${priceLoading ? '...' : displayPrice}/${billingCycle === 'monthly' ? 'month' : 'year'}`}
             </button>
 
             <p className="security-note">
@@ -177,13 +230,17 @@ function CheckoutForm() {
 
             <div className="summary-item">
               <span>VASG-VG Pro {billingCycle === 'annual' ? '(Annual)' : '(Monthly)'}</span>
-              <span className="price">${displayPrice.toFixed(2)}</span>
+              <span className="price">
+                {priceLoading ? '...' : `$${displayPrice}`}
+              </span>
             </div>
 
-            {billingCycle === 'annual' && (
+            {billingCycle === 'annual' && !priceLoading && (
               <div className="summary-item discount">
-                <span>Annual Discount (20%)</span>
-                <span className="price">-$60.00</span>
+                <span>Annual Discount</span>
+                <span className="price">
+                  -${((monthlyPrice * 12 - annualPrice) / 100).toFixed(2)}
+                </span>
               </div>
             )}
 
@@ -191,7 +248,9 @@ function CheckoutForm() {
 
             <div className="summary-item total">
               <span>Total</span>
-              <span className="price">${displayPrice.toFixed(2)}</span>
+              <span className="price">
+                {priceLoading ? '...' : `$${displayPrice}`}
+              </span>
             </div>
 
             <h4>What's Included</h4>
