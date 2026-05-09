@@ -187,7 +187,7 @@ export default function CheckoutPage() {
               <li>✓ Unlimited daily app access</li>
               <li>✓ Unlimited content generations</li>
               <li>✓ All 8 niches unlocked</li>
-              <li>✓ All 4 content types</li>
+              <li>✓ All 6 content types</li>
               <li>✓ Priority support</li>
               <li>✓ Advanced analytics</li>
               <li>✓ Content calendar sync</li>
