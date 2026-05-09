@@ -22,9 +22,9 @@ function CheckoutForm() {
   const [email, setEmail] = useState('');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
 
-  const monthlyPrice = 2999; // $29.99 in cents
-  const annualPrice = 29900; // $299.00 in cents (save $60/year)
-  const displayPrice = billingCycle === 'monthly' ? 29.99 : 299.00;
+  const monthlyPrice = 999; // $9.99 in cents
+  const annualPrice = 9999; // $99.99in cents (save $60/year)
+  const displayPrice = billingCycle === 'monthly' ? 9.99 : 99.99;
   const savings = billingCycle === 'annual' ? '$60/year' : 'Save $60/year with annual';
 
   const handleSubmit = async (event: React.FormEvent) => {
