@@ -1,13 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
+import {
+  Elements,
+  CardElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
 
 const stripePromise = loadStripe(
   process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || ''
 );
 
-export default function CheckoutPage() {
+// Checkout Form Component
+function CheckoutForm() {
+  const stripe = useStripe();
+  const elements = useElements();
+
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
@@ -17,7 +27,13 @@ export default function CheckoutPage() {
   const displayPrice = billingCycle === 'monthly' ? 29.99 : 299.00;
   const savings = billingCycle === 'annual' ? '$60/year' : 'Save $60/year with annual';
 
-  const handleCheckout = async () => {
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!stripe || !elements) {
+      return;
+    }
+
     if (!email) {
       alert('Please enter your email address');
       return;
@@ -26,7 +42,7 @@ export default function CheckoutPage() {
     setLoading(true);
 
     try {
-      // Call your backend to create a Stripe checkout session
+      // Create checkout session
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: {
@@ -35,16 +51,19 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           email,
           billingCycle,
-          priceAmount: billingCycle === 'monthly' ? monthlyPrice : annualPrice,
         }),
       });
 
       const data = await response.json();
 
+      if (data.error) {
+        alert(`Error: ${data.error}`);
+        return;
+      }
+
+      // Redirect to Stripe Checkout
       if (data.url) {
         window.location.href = data.url;
-      } else if (data.error) {
-        alert(`Error: ${data.error}`);
       }
     } catch (error) {
       console.error('Checkout error:', error);
@@ -52,6 +71,25 @@ export default function CheckoutPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const cardElementOptions = {
+    style: {
+      base: {
+        fontSize: '16px',
+        color: '#424770',
+        '::placeholder': {
+          color: '#aab7c4',
+        },
+        backgroundColor: '#ffffff',
+        padding: '12px 16px',
+        border: '1px solid #e1e5e9',
+        borderRadius: '6px',
+      },
+      invalid: {
+        color: '#9e2146',
+      },
+    },
   };
 
   return (
@@ -90,7 +128,7 @@ export default function CheckoutPage() {
             <p className="price-note">{savings}</p>
           </div>
 
-          <form className="checkout-form">
+          <form onSubmit={handleSubmit} className="checkout-form">
             <div className="form-group">
               <label htmlFor="email">Email address</label>
               <input
@@ -104,52 +142,26 @@ export default function CheckoutPage() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="card">Card details</label>
-              <div className="card-input-placeholder">
-                <span>💳</span>
-                <span>Mock Stripe Card Element</span>
-                <span className="small-text">Enter any test card number</span>
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label htmlFor="expiry">Expiry</label>
-                <input
-                  id="expiry"
-                  type="text"
-                  placeholder="MM/YY"
-                  disabled
-                  value="12/26"
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="cvc">CVC</label>
-                <input
-                  id="cvc"
-                  type="text"
-                  placeholder="CVC"
-                  disabled
-                  value="123"
-                />
+              <label>Card details</label>
+              <div className="card-element-wrapper">
+                <CardElement options={cardElementOptions} />
               </div>
             </div>
 
             <div className="terms-checkbox">
-              <input type="checkbox" id="terms" defaultChecked />
+              <input type="checkbox" id="terms" defaultChecked required />
               <label htmlFor="terms">
-                I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+                I agree to the <a href="#" target="_blank">Terms of Service</a> and <a href="#" target="_blank">Privacy Policy</a>
               </label>
             </div>
 
             <button
-              type="button"
+              type="submit"
               className="btn btn-primary btn-large checkout-btn"
-              onClick={handleCheckout}
-              disabled={loading}
+              disabled={!stripe || loading}
               style={{ width: '100%' }}
             >
-              {loading ? 'Processing... ⏳' : `Pay $${displayPrice.toFixed(2)}`}
+              {loading ? 'Processing... ⏳' : `Subscribe for $${displayPrice.toFixed(2)}/${billingCycle === 'monthly' ? 'month' : 'year'}`}
             </button>
 
             <p className="security-note">
@@ -221,5 +233,14 @@ export default function CheckoutPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Main Checkout Page Component
+export default function CheckoutPage() {
+  return (
+    <Elements stripe={stripePromise}>
+      <CheckoutForm />
+    </Elements>
   );
 }
